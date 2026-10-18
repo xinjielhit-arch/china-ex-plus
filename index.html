@@ -47,9 +47,9 @@ textarea:focus{outline:2px solid #FF7E7E}
 .chip{padding:1px 9px;border:2px solid #000;border-radius:6px;font-size:12px;font-weight:700}
 .空提示{font-size:13px;color:#777;border:2px dashed #bbb;border-radius:6px;padding:8px;text-align:center;width:100%}
 .注{margin:0;font-size:12px;color:#666}
-/* 导出预览弹层 */
-#输出{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:#FFF;text-align:center;flex-direction:column;flex-wrap:nowrap;align-content:center;justify-content:center;align-items:center;z-index:40}
-#输出 img{display:block;width:min(480px,88vw);height:auto;margin:0 auto;box-shadow:0 5px 20px rgba(0,0,0,.14);border:1px solid #ddd}
+/* 导出预览弹层（可滚动，适配小屏） */
+#输出{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:#FFF;z-index:40;overflow:auto;-webkit-overflow-scrolling:touch;text-align:center;padding:24px 12px;box-sizing:border-box}
+#输出 img{display:block;width:auto;height:auto;max-width:88vw;max-height:62vh;margin:0 auto;box-shadow:0 5px 20px rgba(0,0,0,.14);border:1px solid #ddd}
 #输出 p{margin:12px 0}
 /* 轻提示（置顶，避开底部面板与键盘） */
 #轻提示{position:fixed;left:50%;top:18px;transform:translateX(-50%) translateY(-14px);background:#111;color:#FFF;padding:9px 20px;border-radius:22px;font-size:14px;z-index:50;opacity:0;transition:.3s;pointer-events:none;max-width:80vw;box-sizing:border-box}
@@ -399,27 +399,39 @@ $('#重置').onclick=()=>{
   if(confirm('确定清空所有标记？')){S=Array(paths.length).fill(0);刷新();轻提示('已重置');}
 };
 
-/* ============ 保存成图片（沿用原版导出方式） ============ */
+/* ============ 保存成图片（移动端兼容：SVG 必须带显式尺寸，否则 iOS 光栅化不全） ============ */
 const 输出=$('#输出'),输出图=输出.querySelector('img');
 $('#保存').onclick=()=>{
-  const svg=document.querySelector('svg');
-  const 源='<?xml version="1.0" encoding="utf-8"?>'+svg.outerHTML;
+  /* 收起键盘、还原视口，保证弹层全屏可见 */
+  if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
+  document.documentElement.style.height='';
+  const 克隆=document.querySelector('svg').cloneNode(true);
+  克隆.setAttribute('width','1134');
+  克隆.setAttribute('height','976');
+  const 源='<?xml version="1.0" encoding="utf-8"?>'+克隆.outerHTML;
   const url=URL.createObjectURL(new Blob([源],{type:'image/svg+xml;charset=utf-8'}));
   const img=new Image();
-  img.onload=()=>{
+  const 绘制=()=>{
     const E=2,W=1134*E,H=976*E+158;
     const cv=document.createElement('canvas');cv.width=W;cv.height=H;
     const ctx=cv.getContext('2d');
     ctx.fillStyle='#efb4b4';ctx.fillRect(0,0,W,H);
     ctx.drawImage(img,0,0,1134,976,0,79,W,976*E);
     cv.toBlob(b=>{
+      if(!b){轻提示('图片生成失败，请重试');return;}
       const u=URL.createObjectURL(b);
+      输出图.onload=()=>{输出.style.display='block';};
       输出图.src=u;$('#下载').href=u;
-      输出.style.display='flex';
     },'image/png');
   };
-  img.onerror=()=>轻提示('图片生成失败，请重试');
-  img.src=url;
+  if(img.decode){
+    img.src=url;
+    img.decode().then(绘制).catch(()=>{ img.onload=绘制; img.onerror=()=>轻提示('图片生成失败，请重试'); img.src=url; });
+  }else{
+    img.onload=绘制;
+    img.onerror=()=>轻提示('图片生成失败，请重试');
+    img.src=url;
+  }
 };
 $('#关闭输出').onclick=()=>输出.style.display='none';
 })();
