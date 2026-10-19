@@ -402,7 +402,8 @@ function 刷新(){
   rects.forEach((r,i)=>{r.setAttribute('level',S[i]);r.setAttribute('fill',等级色[S[i]])});
   const n=S.reduce((a,b)=>a+b,0);
   $('#面板分数').textContent='分数 '+n;
-  名g.removeChild(分数组);
+  const 旧=名g.querySelector('#分数组');
+  if(旧)旧.remove();
   const 新=绘字(String(n)||'0',260-String(n).length*8,29,'h',3.6);
   新.setAttribute('id','分数组');
   try{localStorage.setItem('pflvs',S.join(''))}catch(e){}
@@ -425,8 +426,9 @@ let 当前=null;
 弹窗.addEventListener('click',e=>{
   e.stopPropagation();
   const a=e.target.closest('a');if(!a)return;
-  if(当前){S[rects.indexOf(当前)]=+a.dataset.level;刷新();}
+  const lv=+a.dataset.level;
   弹窗.style.display='none';
+  if(当前){S[rects.indexOf(当前)]=lv;刷新();}
 });
 document.addEventListener('click',()=>弹窗.style.display='none');
 
