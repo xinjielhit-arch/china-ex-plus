@@ -38,6 +38,8 @@ svg a{pointer-events:auto}
 #面板>header{display:flex;align-items:center;gap:8px;padding:6px 14px;background:#FF7E7E;border-bottom:3px solid #000;flex:none}
 #面板>header h2{margin:0;font-size:15px}
 #面板分数{font:700 14px/1 inherit;font-family:inherit;background:#FFF;border:2px solid #000;border-radius:6px;padding:4px 8px;margin-left:auto;white-space:nowrap}
+#导航{font-size:13px;font-weight:700;margin-left:10px}
+#导航 a{padding:2px 6px;border:2px solid #000;border-radius:5px;background:#FFF;margin-left:4px}
 #面板>header button{background:#FFF;border:2px solid #000;border-radius:4px;cursor:pointer;font:600 12px/1 inherit;font-family:inherit;padding:4px 8px}
 #面板 .主体{width:100%;max-width:800px;margin:0 auto;padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px;box-sizing:border-box}
 textarea{width:100%;box-sizing:border-box;height:56px;resize:vertical;border:3px solid #000;border-radius:6px;padding:6px 10px;font:14px/1.6 inherit;font-family:inherit;background:#FDFDFD}
@@ -138,6 +140,7 @@ text{font-family:字体,sans-serif;fill:#111;font-size:30px}
   <header>
     <h2>✍ 文本标记</h2>
     <span id="面板分数">分数 0/170</span>
+    <span id="导航"><a href="./" style="background:#FF7E7E">中国</a><a href="./world.html" title="全球制霸">全球</a><a href="./japan.html" title="巡礼等级">日本</a></span>
     <button id="收起面板">收起 ✕</button>
   </header>
   <div class="主体">
@@ -146,11 +149,13 @@ text{font-family:字体,sans-serif;fill:#111;font-size:30px}
       <button id="解析钮" class="按钮 主">标记到地图</button>
       <button id="示例钮" class="按钮 次">示例</button>
       <button id="清空钮" class="按钮 次">清空</button>
+      <button id="导入钮" class="按钮 次">📷 导入图片</button>
+      <input type="file" id="图片框" accept="image/*" style="display:none">
       <span style="flex:1"></span>
       <button id="保存" class="按钮">保存成图片</button>
       <button id="重置" class="按钮">重置</button>
     </div>
-    <div id="反馈" class="行"><span class="注">省份或城市 + 行为（居住/短居/游玩/出差/路过，可省略默认游玩）· 支持语音转文字：无需分隔符、同音容错、自动忽略「想去/没去过」 · 点地图省份可改 · 改进自 <a href="https://lab.magiconch.com/china-ex/" target="_blank">神奇海螺</a></span></div>
+    <div id="反馈" class="行"><span class="注">省份或城市 + 行为（居住/短居/游玩/出差/路过，可省略默认游玩）· 支持语音转文字 · 📷可从图片导入 · 点地图省份可改 · 改进自 <a href="https://lab.magiconch.com/china-ex/" target="_blank">神奇海螺</a></span></div>
   </div>
 </section>
 
@@ -329,9 +334,17 @@ function 解析(raw){
   };
   let 忽略=0,同音=0;
   for(const 待 of 地点命中){
-    const 前=t.slice(Math.max(0,待.s-6),待.s);
+    const 窗起=Math.max(0,待.s-6);
+    const 前=t.slice(窗起,待.s);
     const 后=t.slice(待.e,待.e+3);
-    if(未成行.some(k=>前.includes(k))||/^[没未]/.test(后)||后.includes('没去')||后.includes('没到')){忽略++;continue;}
+    const 邻否=k=>{
+      const i=前.lastIndexOf(k);
+      if(i<0)return false;
+      const 否起=窗起+i,否尾=窗起+i+k.length;
+      if(地点命中.some(m=>m!==待&&m.e>=否起-1&&m.e<=否起+1))return false;
+      return !地点命中.some(m=>m!==待&&m.s>=否尾&&m.e<=待.s);
+    };
+    if(未成行.some(邻否)||/^[没未]/.test(后)||后.includes('没去')||后.includes('没到')){忽略++;continue;}
     const 准后=考(标准池,5,true,待);
     const 变后=准后?null:考(变体池,5,true,待);
     const 准前=(准后||变后)?null:考(标准池,5,false,待);
@@ -394,6 +407,113 @@ if(视口){
   const 适配=()=>{document.documentElement.style.height=视口.height+'px';window.scrollTo(0,0);};
   视口.addEventListener('resize',适配);
   适配();
+}
+
+/* ============ 📷 导入图片：定位地图色块，颜色范围分级 ============ */
+$('#导入钮').onclick=()=>$('#图片框').click();
+$('#图片框').onchange=e=>{
+  const f=e.target.files[0];
+  e.target.value='';
+  if(!f)return;
+  const img=new Image();
+  img.onload=()=>{图片导入(img);URL.revokeObjectURL(img.src);};
+  img.onerror=()=>轻提示('图片读取失败');
+  img.src=URL.createObjectURL(f);
+};
+function 图片导入(img){
+  const cv=document.createElement('canvas');
+  const 比=Math.min(1,2400/Math.max(img.width,img.height));
+  cv.width=Math.round(img.width*比);cv.height=Math.round(img.height*比);
+  const cx=cv.getContext('2d');
+  cx.drawImage(img,0,0,cv.width,cv.height);
+  const 像=cx.getImageData(0,0,cv.width,cv.height);
+  const 色=(x,y)=>{
+    x=Math.max(0,Math.min(cv.width-1,Math.round(x)));y=Math.max(0,Math.min(cv.height-1,Math.round(y)));
+    const i=(y*cv.width+x)*4;
+    return [像.data[i],像.data[i+1],像.data[i+2]];
+  };
+  /* 1. 粉底包围盒（#efb4b4 容差范围），兼容截图带白边/黑边 */
+  let x0=1e9,y0=1e9,x1=-1,y1=-1;
+  for(let y=0;y<cv.height;y+=2)for(let x=0;x<cv.width;x+=2){
+    const[r,g,b]=色(x,y);
+    if(Math.abs(r-239)<30&&Math.abs(g-180)<32&&Math.abs(b-180)<32){
+      if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+    }
+  }
+  if(x1-x0<40||y1-y0<40){轻提示('未找到地图区域，请上传完整生成图或含它的截图');return;}
+  /* 2. 深色行列直方图 → 最长连续段 = 色块地图范围（排除截图里其他文字/边框） */
+  const 行暗=Array(cv.height).fill(0),列暗=Array(cv.width).fill(0);
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const[r,g,b]=色(x,y);
+    if(r<110&&g<110&&b<110){行暗[y]++;列暗[x]++;}
+  }
+  const 最长段=暗=>{
+    let best=[0,0],s=-1;
+    for(let i=0;i<暗.length;i++){
+      if(暗[i]>0){if(s<0)s=i;}
+      else{if(s>=0&&i-s>best[1]-best[0])best=[s,i];s=-1;}
+    }
+    if(s>=0&&暗.length-s>best[1]-best[0])best=[s,暗.length];
+    return best;
+  };
+  const[my0,my1]=最长段(行暗),[mx0,mx1]=最长段(列暗);
+  if(mx1-mx0<40||my1-my0<40){轻提示('未识别到地图边界，请换更完整的图');return;}
+  /* 3. 地图内容在 viewBox 中的范围（运行时求各块 bbox 并集） */
+  let vx0=1e9,vy0=1e9,vx1=-1,vy1=-1;
+  paths.forEach(p=>{
+    const b=p.getBBox();
+    vx0=Math.min(vx0,b.x);vy0=Math.min(vy0,b.y);
+    vx1=Math.max(vx1,b.x+b.width);vy1=Math.max(vy1,b.y+b.height);
+  });
+  const 映射=(x,y)=>[mx0+(x-vx0)/(vx1-vx0)*(mx1-mx0),my0+(y-vy0)/(vy1-vy0)*(my1-my0)];
+  /* 4. 逐省取块中心中位色 → 按颜色范围分级（颜色为区间，容差 95） */
+  const 基=[['#FF7E7E',5],['#FFB57E',4],['#FFE57E',3],['#A8FFBE',2],['#88AEFF',1],['#FFFFFF',0],['#EFB4B4',-1]].map(([h,l])=>{
+    const n=parseInt(h.slice(1),16);
+    return [n>>16,n>>8&255,n&255,l];
+  });
+  const 分类=(r,g,b)=>{
+    if(r<110&&g<110&&b<110)return '黑';
+    if(Math.abs(r-239)<30&&Math.abs(g-180)<32&&Math.abs(b-180)<32)return '杂';
+    let 最=null;
+    for(const[R,G,B,l]of 基.slice(0,6)){
+      const d=Math.sqrt((r-R)**2+(g-G)**2+(b-B)**2);
+      if(!最||d<最.d)最={d,l};
+    }
+    return 最.d<60?最.l:'杂';
+  };
+  const svg=document.querySelector('svg');
+  const 造点=(x,y)=>{const p=svg.createSVGPoint();p.x=x;p.y=y;return p;};
+  const 字盒=[...svg.querySelectorAll('text')].map(tx=>tx.getBBox());
+  /* 只排除字形核心区（外缩后小块的边缘采样点可用） */
+  const 在字=(x,y)=>字盒.some(b=>{
+    const w=b.width*0.16,h=b.height*0.16;
+    return x>=b.x+w&&x<=b.x+b.width-w&&y>=b.y+h&&y<=b.y+b.height-h;
+  });
+  let 成=0,败=0;
+  paths.forEach((p,i)=>{
+    const b=p.getBBox();
+    /* 只采样落在省份形状内、且不在文字上的点 */
+    const 在内=[];
+    for(let gy=1;gy<=5&&在内.length<16;gy++)for(let gx=1;gx<=5&&在内.length<16;gx++){
+      const vx=b.x+b.width*gx/6,vy=b.y+b.height*gy/6;
+      if(在字(vx,vy))continue;
+      let 在=false;
+      try{在=p.isPointInFill(造点(vx,vy));}catch(e){在=false;}
+      if(在)在内.push([vx,vy]);
+    }
+    if(在内.length<2){败++;return;}
+    const 票={};let 有效=0;
+    for(const[vx,vy]of 在内){
+      const[px,py]=映射(vx,vy);
+      const k=分类(...色(px,py));
+      if(k!=='黑'&&k!=='杂'){票[k]=(票[k]||0)+1;有效++;}
+    }
+    const 项=Object.entries(票).sort((a,b2)=>b2[1]-a[1])[0];
+    if(项&&项[1]>=2&&项[1]*2>=有效){S[i]=+项[0];成++;}
+    else 败++;
+  });
+  刷新();
+  轻提示(`导入完成：识别 ${成} 省`+(败?` · ${败} 省未识别（保持原标记）`:''));
 }
 $('#重置').onclick=()=>{
   if(confirm('确定清空所有标记？')){S=Array(paths.length).fill(0);刷新();轻提示('已重置');}
