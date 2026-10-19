@@ -335,7 +335,7 @@ const $=s=>document.querySelector(s);
 const SVG='http://www.w3.org/2000/svg';
 const 地区g=$('#地区'),名g=$('#地名');
 const 字宽=m=>MojiWidths[m]||(/\d|[a-zA-Z]/.test(m)?9:14);
-const 绘字=(文,x,y,向='h',比例=1,粗=1.5,色='#000')=>{
+const 绘字=(文,x,y,向='h',比例=1,粗=1.5,色='#000',容器=名g)=>{
   const g=document.createElementNS(SVG,'g');
   g.setAttribute('transform',`translate(${x} ${y}) scale(${比例})`);
   g.setAttribute('stroke',色);
@@ -351,7 +351,7 @@ const 绘字=(文,x,y,向='h',比例=1,粗=1.5,色='#000')=>{
     }
     if(向==='h')dx+=字宽(m);else dy+=14;
   }
-  名g.appendChild(g);
+  容器.appendChild(g);
   return g;
 };
 县表.forEach(([id,x,y,w,h,mx,my,向])=>{
@@ -386,8 +386,8 @@ const 分数组=绘字('',0,0,'h',3.6);
   g.appendChild(框);
   for(let i=5;i>=0;i--){
     const y=100+(5-i)*30;
-    绘字(等级名[i],40,y+8,'h');
-    绘字(String(i),150,y+8,'h');
+    绘字(等级名[i],40,y+8,'h',1,1.5,'#000',g);
+    绘字(String(i),150,y+8,'h',1,1.5,'#000',g);
   }
 })();
 
@@ -404,8 +404,10 @@ function 刷新(){
   $('#面板分数').textContent='分数 '+n;
   const 旧=名g.querySelector('#分数组');
   if(旧)旧.remove();
-  const 新=绘字(String(n)||'0',260-String(n).length*8,29,'h',3.6);
-  新.setAttribute('id','分数组');
+  if(n>0){  /* 与原版一致：有标记才显示分数数字 */
+    const 新=绘字(String(n),260-String(n).length*8,29,'h',3.6);
+    新.setAttribute('id','分数组');
+  }
   try{localStorage.setItem('pflvs',S.join(''))}catch(e){}
 }
 刷新();
