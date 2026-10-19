@@ -338,6 +338,7 @@ const 字宽=m=>MojiWidths[m]||(/\d|[a-zA-Z]/.test(m)?9:14);
 const 绘字=(文,x,y,向='h',比例=1,粗=1.5,色='#000',容器=名g)=>{
   const g=document.createElementNS(SVG,'g');
   g.setAttribute('transform',`translate(${x} ${y}) scale(${比例})`);
+  g.setAttribute('fill','none');
   g.setAttribute('stroke',色);
   g.setAttribute('stroke-width',粗);
   let dx=0,dy=0;
