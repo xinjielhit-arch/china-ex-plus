@@ -304,6 +304,14 @@ $('#图片框').onchange=e=>{
   const f=e.target.files[0];
   e.target.value='';
   if(!f)return;
+  /* 优先 ImageBitmap：按 EXIF 方向解码，手机拍照导入不会旋转 */
+  if(window.createImageBitmap){
+    createImageBitmap(f,{imageOrientation:'from-image'})
+      .then(bp=>{图片导入(bp);if(bp.close)bp.close();})
+      .catch(()=>用Image导入(f));
+  }else 用Image导入(f);
+};
+const 用Image导入=f=>{
   const img=new Image();
   img.onload=()=>{图片导入(img);URL.revokeObjectURL(img.src);};
   img.onerror=()=>轻提示('图片读取失败');
@@ -417,29 +425,46 @@ function 图片导入(img){
 
 /* ============ 保存成图片（2000×2000 蓝底，移动端兼容） ============ */
 const 输出=$('#输出'),输出图=输出.querySelector('img');
-$('#保存').onclick=()=>{
+$('#保存').onclick=async()=>{
   if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
   document.documentElement.style.height='';
+  try{await document.fonts.load('12px slice');}catch(e){}
+  /* 形状层：克隆 SVG 并剥离全部 <text>（iOS 光栅化 SVG 图片不加载字体，文本会整段消失） */
   const 克隆=document.querySelector('svg').cloneNode(true);
+  克隆.querySelectorAll('text').forEach(t=>t.remove());
   克隆.setAttribute('width','2000');克隆.setAttribute('height','1210');
   const 源='<?xml version="1.0" encoding="utf-8"?>'+克隆.outerHTML;
   const url=URL.createObjectURL(new Blob([源],{type:'image/svg+xml;charset=utf-8'}));
   const img=new Image();
-  const 绘制=()=>{
-    const E=1.5,W=2000*E,H=2000*E;
-    const c=document.createElement('canvas');c.width=W;c.height=H;
-    const ctx=c.getContext('2d');
-    ctx.fillStyle='#BAE4FF';ctx.fillRect(0,0,W,H);
-    ctx.drawImage(img,0,0,2000,1210,0,Math.round(395*E),W,1210*E);
-    c.toBlob(b=>{
-      if(!b){轻提示('图片生成失败，请重试');return;}
-      const u=URL.createObjectURL(b);
-      输出图.onload=()=>{输出.style.display='block';};
-      输出图.src=u;$('#下载').href=u;
-    },'image/png');
-  };
-  if(img.decode){img.src=url;img.decode().then(绘制).catch(()=>{img.onload=绘制;img.src=url;});}
-  else{img.onload=绘制;img.src=url;}
+  try{
+    await new Promise((ok,bad)=>{img.onload=ok;img.onerror=bad;img.src=url;});
+    if(img.decode){try{await img.decode();}catch(e){}}
+  }catch(e){轻提示('图片生成失败，请重试');return;}
+  const E=1.5,W=2000*E,H=2000*E;
+  const c=document.createElement('canvas');c.width=W;c.height=H;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#BAE4FF';ctx.fillRect(0,0,W,H);
+  ctx.drawImage(img,0,0,2000,1210,0,Math.round(395*E),W,1210*E);
+  /* 文本层：用文档已加载的 slice 字体逐个 fillText（不依赖 SVG 图片的字体渲染，iOS/桌面一致） */
+  const 偏移=Math.round(395*E);
+  document.querySelectorAll('svg text').forEach(t=>{
+    const cs=getComputedStyle(t);
+    const fs=parseFloat(cs.fontSize)||12;
+    const x=parseFloat(t.getAttribute('x')),y=parseFloat(t.getAttribute('y'));
+    if(!isFinite(x)||!isFinite(y))return;
+    ctx.font=fs*E+'px slice,sans-serif';
+    ctx.fillStyle=(cs.fill&&cs.fill!=='none')?cs.fill:'#000';
+    const 锚=t.getAttribute('text-anchor');
+    ctx.textAlign=锚==='middle'?'center':锚==='end'?'end':'left';
+    ctx.textBaseline='alphabetic';
+    ctx.fillText(t.textContent,x*E,偏移+y*E);
+  });
+  c.toBlob(b=>{
+    if(!b){轻提示('图片生成失败，请重试');return;}
+    const u=URL.createObjectURL(b);
+    输出图.onload=()=>{输出.style.display='block';};
+    输出图.src=u;$('#下载').href=u;
+  },'image/png');
 };
 $('#关闭输出').onclick=()=>输出.style.display='none';
 })();
